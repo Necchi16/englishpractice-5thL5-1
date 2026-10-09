@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Town Builder</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Kosugi Maru', sans-serif;
+            background-color: #f0fdf4; /* 優しい緑色の背景 */
+            margin: 0;
+            overflow: hidden; /* スクロール防止 */
+            touch-action: none; /* スマホでのスワイプによる画面移動防止 */
+        }
+
+        /* アプリケーションコンテナ */
+        #app-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            position: relative; /* パレットの基準位置にするため追加 */
+            overflow: hidden; /* パレットがはみ出さないように追加 */
+        }
+
+        /* ツールバー */
+        #toolbar {
+            background-color: #ffffff;
+            border-bottom: 2px solid #e5e7eb;
+            padding: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+
+        .tool-btn {
+            padding: 8px 16px;
+            border-radius: 9999px;
+            border: 2px solid transparent;
+            background-color: #f3f4f6;
+            color: #374151;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tool-btn:hover {
+            background-color: #e5e7eb;
+        }
+
+        .tool-btn.active {
+            background-color: #3b82f6;
+            color: white;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+        }
+
+        /* キャンバスエリア */
+        #canvas-container {
+            flex-grow: 1;
+            position: relative;
+            background-color: #dcfce7; /* 草地のイメージ */
+            cursor: crosshair; /* デフォルトは描画モードっぽく */
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        #draw-canvas {
+            z-index: 1; /* 道を描くレイヤー */
+        }
+
+        #object-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2; /* 建物を置くレイヤー */
+            pointer-events: none; /* マウスイベントは下のキャンバスに流す */
+        }
+
+        .town-object {
+            position: absolute;
+            transform: translate(-50%, -50%); /* 中心を基準に配置 */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: auto; /* オブジェクト自体はクリック可能に（必要なら） */
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            0% { transform: translate(-50%, -50%) scale(0); }
+            100% { transform: translate(-50%, -50%) scale(1); }
+        }
+
+        .town-object-icon {
+            font-size: 2.5rem;
+            filter: drop-shadow(0 4px 3px rgba(0,0,0,0.2));
+        }
+
+        .town-object-label {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-top: -5px;
+            border: 1px solid #ccc;
+            text-align: center;
+            white-space: nowrap;
+        }
+
+        /* アイテム選択パレット (左サイドバーに変更) */
+        #item-palette {
+            position: absolute;
+            top: 0;
+            left: -320px; /* 初期位置は左の画面外に隠す */
+            width: 300px;
+            height: 100%;
+            background-color: white;
+            border-right: 4px solid #3b82f6;
+            box-shadow: 4px 0 6px rgba(0,0,0,0.1);
+            transition: left 0.3s ease-in-out;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #item-palette.show {
+            left: 0;
+        }
+
+        .palette-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background-color: #f8fafc;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .item-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); /* 2列表示でスッキリさせる */
+            gap: 10px;
+            padding: 15px;
+            overflow-y: auto; /* スクロール可能に */
+            flex-grow: 1;
+        }
+
+        .item-card {
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            background-color: white;
+        }
+
+        .item-card:hover {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+            transform: translateY(-2px);
+        }
+
+        .item-card.selected {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+        }
+
+        .item-icon {
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+
+        .item-name {
+            font-size: 0.8rem;
+            text-align: center;
+            word-break: break-word;
+        }
+
+        /* 音声再生ボタン */
+        .play-audio-btn {
+            margin-top: 5px;
+            color: #3b82f6;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1.2rem;
+            padding: 5px;
+            border-radius: 50%;
+            transition: all 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 30px;
+            height: 30px;
+        }
+
+        .play-audio-btn:hover {
+            background-color: #e5e7eb;
+            transform: scale(1.1);
+        }
+
+        /* 音声認識モーダル */
+        #voice-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+            backdrop-filter: blur(2px);
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 90%;
+            width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            animation: slideDown 0.3s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .mic-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background-color: #ef4444;
+            color: white;
+            font-size: 2rem;
+            border: none;
+            cursor: pointer;
+            margin: 20px auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3);
+            transition: all 0.2s;
+        }
+        
+        .mic-btn:active {
+            transform: scale(0.95);
+        }
+
+        .mic-btn.listening {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+            70% { box-shadow: 0 0 0 15px rgba(239, 68, 68, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+        }
+
+        .skip-btn {
+            margin-top: 15px;
+            padding: 8px 16px;
+            background-color: #9ca3af;
+            color: white;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: none; /* 初期は非表示 */
+        }
+        
+        .skip-btn:hover { background-color: #6b7280; }
+
+        /* 完成画面モーダル */
+        #finish-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.4); /* 町が見えるように半透明に */
+            backdrop-filter: blur(3px); /* 少しぼかして見やすくする */
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+
+        .finish-content {
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border: 4px solid #3b82f6;
+            text-align: center;
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            max-width: 90%;
+        }
+
+        .big-btn {
+            padding: 15px 30px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            border-radius: 9999px;
+            border: none;
+            cursor: pointer;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        
+        .big-btn:hover { transform: scale(1.05); }
+        .btn-blue { background-color: #3b82f6; color: white; box-shadow: 0 4px 6px rgba(59, 130, 246, 0.4); }
+        .btn-green { background-color: #10b981; color: white; box-shadow: 0 4px 6px rgba(16, 185, 129, 0.4); }
+
+        /* 夢の町フェーズのヘッダー色変更用 */
+        .dream-mode-header {
+            background: linear-gradient(to right, #fdf4ff, #fae8ff) !important;
+            border-bottom-color: #f0abfc !important;
+        }
+        
+        /* 設置待ちカーソル */
+        .placing-mode {
+            cursor: pointer !important;
+        }
+
+        /* 選択モード時のカーソル */
+        .select-mode {
+            cursor: default !important;
+        }
+        
+        /* 選択された建物のスタイル */
+        .town-object.is-selected {
+            z-index: 10;
+        }
+        .town-object.is-selected .town-object-label {
+            background-color: #eff6ff;
+            border-color: #3b82f6;
+            color: #1d4ed8;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <!-- ツールバー -->
+        <div id="toolbar" class="flex flex-col sm:flex-row gap-2">
+            <div class="flex items-center gap-2">
+                <span id="mode-badge" class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-400">わたしの町</span>
+                <h1 class="text-xl font-bold text-gray-800 hidden sm:block">My Town Builder</h1>
+            </div>
+            
+            <div class="flex flex-wrap justify-center gap-2 my-1 sm:my-0">
+                <div class="flex gap-2">
+                    <button id="btn-select" class="tool-btn">
+                        <i class="fas fa-mouse-pointer"></i> <span>えらぶ</span>
+                    </button>
+                    <button id="btn-draw" class="tool-btn active">
+                        <i class="fas fa-road"></i> <span>道をかく</span>
+                    </button>
+                    <button id="btn-build" class="tool-btn">
+                        <i class="fas fa-home"></i> <span>建物を置く</span>
+                    </button>
+                </div>
+                <!-- 選択時に表示される削除ボタン -->
+                <button id="btn-delete" class="tool-btn bg-red-100 text-red-600 border-red-300 hover:bg-red-200" style="display: none;">
+                    <i class="fas fa-eraser"></i> <span class="hidden sm:inline">消す</span>
+                </button>
+                <div class="flex gap-2 border-l-2 border-gray-300 pl-2">
+                    <button id="btn-undo" class="tool-btn bg-white" title="ひとつもどる">
+                        <i class="fas fa-undo"></i> <span class="hidden sm:inline">もどる</span>
+                    </button>
+                    <button id="btn-clear" class="tool-btn bg-white text-red-500 hover:text-red-600" title="はじめからやりなおす">
+                        <i class="fas fa-trash-alt"></i> <span class="hidden sm:inline">やりなおす</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div>
+                <button id="btn-finish" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full shadow-md transition-colors flex items-center gap-2">
+                    <i class="fas fa-check-circle"></i> できた！
+                </button>
+            </div>
+        </div>
+
+        <!-- キャンバスエリア -->
+        <div id="canvas-container">
+            <canvas id="draw-canvas"></canvas>
+            <div id="object-layer"></div>
+            <!-- 配置中のゴーストイメージ -->
+            <div id="placement-ghost" style="display:none; position:absolute; pointer-events:none; opacity:0.6; z-index: 3;">
+                <div style="font-size: 2.5rem;" id="ghost-icon"></div>
+            </div>
+        </div>
+
+        <!-- アイテム選択パレット -->
+        <div id="item-palette">
+            <div class="palette-header">
+                <span class="font-bold text-gray-700">置きたい建物を選んでね</span>
+                <button id="close-palette" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times text-xl"></i></button>
+            </div>
+            <div id="item-grid" class="item-grid">
+                <!-- JavaScriptでアイテムを生成 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 音声認識モーダル -->
+    <div id="voice-modal">
+        <div class="modal-content">
+            <div class="text-6xl mb-4" id="target-icon">🏠</div>
+            <h2 class="text-2xl font-bold mb-2">英語で言ってみよう！</h2>
+            
+            <div class="flex justify-center items-center gap-3 mb-4">
+                <p class="text-2xl text-blue-600 font-bold" id="target-word">house</p>
+                <button id="btn-play-sample" class="text-blue-500 hover:text-blue-700 bg-blue-100 hover:bg-blue-200 rounded-full w-10 h-10 flex items-center justify-center transition-colors" title="お手本を聞く">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+            </div>
+            
+            <div class="text-gray-600 mb-4 h-8" id="voice-status">マイクボタンを押して話してね</div>
+            
+            <button id="mic-btn" class="mic-btn">
+                <i class="fas fa-microphone"></i>
+            </button>
+            
+            <div class="flex justify-between items-center mt-6">
+                <button id="cancel-voice" class="text-gray-500 hover:text-gray-700 font-bold px-4 py-2 rounded">やめる</button>
+                
+                <div class="text-sm font-bold" id="fail-counter">
+                    <span class="text-gray-400">失敗: </span>
+                    <span id="fail-count" class="text-red-500 text-lg">0</span> / 3
+                </div>
+            </div>
+            
+            <button id="skip-btn" class="skip-btn w-full mt-4">
+                <i class="fas fa-forward"></i> スキップして置く
+            </button>
+        </div>
+    </div>
+
+    <!-- 完成画面（先生を呼ぶ） -->
+    <div id="finish-modal">
+        <div class="finish-content">
+            <h1 class="text-5xl font-bold text-blue-600 mb-8" id="finish-title">完成！！</h1>
+            <p class="text-2xl mb-8">先生を呼んで、町を見てもらおう！</p>
+            <div class="text-9xl mb-8 animate-bounce">👩‍🏫👨‍🏫</div>
+            <button id="btn-show-teacher" class="big-btn btn-blue">
+                先生に見せたよ！
+            </button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * アプリケーションのデータ定義と初期化
+         */
+        // 画像に載っている単語リスト（絵文字をアイコンとして代用）
+        const vocabulary = [
+            { word: "amusement park", icon: "🎡", jp: "遊園地" },
+            { word: "aquarium", icon: "🐬", jp: "水族館" },
+            { word: "castle", icon: "🏯", jp: "お城" },
+            { word: "church", icon: "⛪", jp: "教会" },
+            { word: "elementary school", icon: "🏫", jp: "小学校" },
+            { word: "fire station", icon: "🚒", jp: "消防署" },
+            { word: "hospital", icon: "🏥", jp: "病院" },
+            { word: "house", icon: "🏠", jp: "家" },
+            { word: "library", icon: "📚", jp: "図書館" },
+            { word: "museum", icon: "🏛️", jp: "博物館" },
+            { word: "gym", icon: "🏀", jp: "体育館" }, // 画像では体育館っぽい
+            { word: "music hall", icon: "🎵", jp: "音楽ホール" },
+            { word: "public hall", icon: "🏢", jp: "公民館" },
+            { word: "swimming pool", icon: "🏊", jp: "プール" },
+            { word: "theater", icon: "🎬", jp: "映画館" },
+            { word: "rice field", icon: "🌾", jp: "田んぼ" },
+            { word: "bridge", icon: "🌉", jp: "橋" },
+            { word: "bus stop", icon: "🚏", jp: "バス停" },
+            { word: "farm", icon: "🚜", jp: "農場" },
+            { word: "park", icon: "🏞️", jp: "公園" },
+            { word: "police station", icon: "🚓", jp: "警察署" },
+            { word: "post office", icon: "📮", jp: "郵便局" },
+            { word: "restaurant", icon: "🍽️", jp: "レストラン" },
+            { word: "roller coaster", icon: "🎢", jp: "ジェットコースター" },
+            { word: "stadium", icon: "🏟️", jp: "スタジアム" },
+            { word: "station", icon: "🚉", jp: "駅" },
+            { word: "street", icon: "🛣️", jp: "道" },
+            { word: "town", icon: "🏙️", jp: "町" },
+            { word: "zoo", icon: "🐘", jp: "動物園" },
+            { word: "garden", icon: "🌷", jp: "庭" },
+            { word: "bookstore", icon: "📖", jp: "本屋" },
+            { word: "convenience store", icon: "🏪", jp: "コンビニ" },
+            { word: "department store", icon: "🏬", jp: "デパート" },
+            { word: "flower shop", icon: "💐", jp: "花屋" },
+            { word: "gas station", icon: "⛽", jp: "ガソリンスタンド" },
+            { word: "hamburger shop", icon: "🍔", jp: "ハンバーガー屋" },
+            { word: "shopping mall", icon: "🛍️", jp: "ショッピングモール" },
+            { word: "supermarket", icon: "🛒", jp: "スーパー" },
+            { word: "shrine", icon: "⛩️", jp: "神社" },
+            { word: "temple", icon: "🛕", jp: "お寺" }
+        ];
+
+        // 状態管理
+        const state = {
+            mode: 'draw', // 'draw', 'build', 'select'
+            phase: 'my-town', // 'my-town' or 'dream-town'
+            dreamTownCount: 1,
+            selectedItem: null,
+            isDrawing: false,
+            
+            placedObjects: [], // {id, x, y, word, icon, selected}
+            paths: [], // {id, points: [{x, y}], selected}
+            currentPath: null, // 現在描画中のパス
+            
+            hasHouse: false, // 最初の家を置いたか
+            history: [], // 元に戻すための履歴データ
+            
+            // 選択・ドラッグ関連
+            selectedEntity: null, // {type: 'object'|'path', id: number}
+            isDragging: false,
+            dragStartMouse: {x: 0, y: 0},
+            dragStartPos: null, // 移動開始前の座標（パスの場合は配列）
+            
+            // 音声認識関連
+            recognition: null,
+            targetWord: "",
+            targetIcon: "",
+            failCount: 0,
+            pendingPlacement: null // {x, y, item}
+        };
+
+        // DOM要素
+        const ui = {
+            btnSelect: document.getElementById('btn-select'),
+            btnDelete: document.getElementById('btn-delete'),
+            btnDraw: document.getElementById('btn-draw'),
+            btnBuild: document.getElementById('btn-build'),
+            btnUndo: document.getElementById('btn-undo'),
+            btnClear: document.getElementById('btn-clear'),
+            btnFinish: document.getElementById('btn-finish'),
+            canvasContainer: document.getElementById('canvas-container'),
+            canvas: document.getElementById('draw-canvas'),
+            ctx: document.getElementById('draw-canvas').getContext('2d'),
+            objectLayer: document.getElementById('object-layer'),
+            itemPalette: document.getElementById('item-palette'),
+            itemGrid: document.getElementById('item-grid'),
+            closePalette: document.getElementById('close-palette'),
+            placementGhost: document.getElementById('placement-ghost'),
+            ghostIcon: document.getElementById('ghost-icon'),
+            modeBadge: document.getElementById('mode-badge'),
+            toolbar: document.getElementById('toolbar'),
+            
+            // 音声モーダル
+            voiceModal: document.getElementById('voice-modal'),
+            targetIcon: document.getElementById('target-icon'),
+            targetWord: document.getElementById('target-word'),
+            btnPlaySample: document.getElementById('btn-play-sample'),
+            voiceStatus: document.getElementById('voice-status'),
+            micBtn: document.getElementById('mic-btn'),
+            cancelVoice: document.getElementById('cancel-voice'),
+            failCountDisplay: document.getElementById('fail-count'),
+            skipBtn: document.getElementById('skip-btn'),
+            
+            // 終了モーダル
+            finishModal: document.getElementById('finish-modal'),
+            finishTitle: document.getElementById('finish-title'),
+            btnShowTeacher: document.getElementById('btn-show-teacher')
+        };
+
+        function initApp() {
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // パレットにアイテムを生成
+            createItemPalette();
+            
+            // 音声認識のセットアップ
+            setupSpeechRecognition();
+            
+            // イベントリスナーの登録
+            setupEventListeners();
+
+            // 初期状態は道を描くモード
+            setMode('draw');
+            
+            // キャンバスサイズ確定後に家を配置し、初期状態を保存
+            setTimeout(() => {
+                const houseItem = vocabulary.find(v => v.word === 'house');
+                if (houseItem && state.placedObjects.length === 0) {
+                    const centerX = ui.canvasContainer.clientWidth / 2;
+                    const centerY = ui.canvasContainer.clientHeight / 2;
+                    placeObject(centerX, centerY, houseItem);
+                    state.hasHouse = true;
+                }
+            }, 100);
+            
+            // 最初の指示
+            setTimeout(() => {
+                showToast("家の周りに道を描いて、町を広げていこう！");
+            }, 1000);
+        }
+
+        function resizeCanvas() {
+            ui.canvas.width = ui.canvasContainer.clientWidth;
+            ui.canvas.height = ui.canvasContainer.clientHeight;
+            // リサイズ時に描画内容を復元する処理が必要な場合はここに追加
+            // 簡単のため今回はリサイズでクリアされる仕様とするか、
+            // 描画履歴を保存して再描画する。今回は描画状態を保持するためにオフスクリーンキャンバスなどの工夫が必要ですが、
+            // シンプルに実装するため、ウィンドウリサイズはあまり考慮しない前提にします（教育用タブレット利用想定）。
+            // 少なくとも現在の線幅などは再設定します。
+            ui.ctx.lineWidth = 20;
+            ui.ctx.lineCap = 'round';
+            ui.ctx.lineJoin = 'round';
+            ui.ctx.strokeStyle = '#9ca3af'; // 灰色のアスファルト色
+        }
+
+        function setupEventListeners() {
+            // ツールバーボタン
+            ui.btnSelect.addEventListener('click', () => setMode('select'));
+            ui.btnDraw.addEventListener('click', () => setMode('draw'));
+            ui.btnBuild.addEventListener('click', () => setMode('build'));
+            ui.btnDelete.addEventListener('click', deleteSelected);
+            ui.btnUndo.addEventListener('click', undo);
+            ui.btnClear.addEventListener('click', clearAll);
+            ui.btnFinish.addEventListener('click', finishTown);
+            
+            // パレット操作
+            ui.closePalette.addEventListener('click', () => {
+                ui.itemPalette.classList.remove('show');
+                if (state.mode === 'build' && !state.selectedItem) {
+                    setMode('draw'); // 何も選ばずに閉じた場合は描画モードに戻る
+                }
+            });
+            
+            // キャンバス操作（描画）
+            // マウス
+            ui.canvasContainer.addEventListener('mousedown', startInteraction);
+            ui.canvasContainer.addEventListener('mousemove', moveInteraction);
+            window.addEventListener('mouseup', endInteraction);
+            // タッチ
+            ui.canvasContainer.addEventListener('touchstart', handleTouchStart, {passive: false});
+            ui.canvasContainer.addEventListener('touchmove', handleTouchMove, {passive: false});
+            window.addEventListener('touchend', endInteraction);
+            
+            // 音声モーダル
+            ui.micBtn.addEventListener('click', toggleListening);
+            ui.cancelVoice.addEventListener('click', closeVoiceModal);
+            ui.skipBtn.addEventListener('click', () => {
+                placeObject(state.pendingPlacement.x, state.pendingPlacement.y, state.pendingPlacement.item);
+                closeVoiceModal();
+            });
+            
+            // 音声再生(お手本)
+            ui.btnPlaySample.addEventListener('click', () => {
+                playAudio(state.targetWord);
+            });
+            
+            // 終了モーダル
+            ui.btnShowTeacher.addEventListener('click', startNextPhase);
+        }
+
+        function setMode(mode) {
+            state.mode = mode;
+            
+            ui.btnSelect.classList.remove('active');
+            ui.btnDraw.classList.remove('active');
+            ui.btnBuild.classList.remove('active');
+            ui.canvasContainer.classList.remove('placing-mode', 'select-mode');
+            ui.canvasContainer.style.cursor = 'default';
+            
+            // 選択モード以外になったら選択状態を解除
+            if (mode !== 'select') {
+                clearSelection();
+            }
+            
+            if (mode === 'select') {
+                ui.btnSelect.classList.add('active');
+                ui.canvasContainer.classList.add('select-mode');
+                ui.itemPalette.classList.remove('show');
+                state.selectedItem = null;
+                hideGhost();
+                updateItemSelection();
+            } else if (mode === 'draw') {
+                ui.btnDraw.classList.add('active');
+                ui.canvasContainer.style.cursor = 'crosshair';
+                ui.itemPalette.classList.remove('show');
+                state.selectedItem = null;
+                hideGhost();
+                updateItemSelection();
+            } else if (mode === 'build') {
+                ui.btnBuild.classList.add('active');
+                ui.itemPalette.classList.add('show');
+            }
+        }
+
+        function createItemPalette() {
+            ui.itemGrid.innerHTML = '';
+            vocabulary.forEach(item => {
+                const card = document.createElement('div');
+                card.className = 'item-card';
+                card.dataset.word = item.word;
+                card.innerHTML = `
+                    <div class="item-icon">${item.icon}</div>
+                    <div class="item-name">${item.word}</div>
+                    <button class="play-audio-btn" title="発音を聞く"><i class="fas fa-volume-up"></i></button>
+                `;
+                
+                // カード全体クリックでアイテム選択
+                card.addEventListener('click', (e) => {
+                    // スピーカーボタンを押した時は選択処理をしない
+                    if (e.target.closest('.play-audio-btn')) {
+                        return;
+                    }
+                    selectItem(item);
+                });
+                
+                // スピーカーボタンクリックで音声再生
+                const playBtn = card.querySelector('.play-audio-btn');
+                playBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // イベントが親のカードに伝わるのを防ぐ
+                    playAudio(item.word);
+                });
+                
+                ui.itemGrid.appendChild(card);
+            });
+        }
+
+        function selectItem(item) {
+            state.selectedItem = item;
+            updateItemSelection();
+            
+            // 画面を広く使って町を作りやすくするためパレットを隠す
+            ui.itemPalette.classList.remove('show');
+            
+            // 設置モードのカーソル表現
+            ui.canvasContainer.classList.add('placing-mode');
+            ui.ghostIcon.textContent = item.icon;
+        }
+
+        function updateItemSelection() {
+            const cards = ui.itemGrid.querySelectorAll('.item-card');
+            cards.forEach(card => {
+                if (state.selectedItem && card.dataset.word === state.selectedItem.word) {
+                    card.classList.add('selected');
+                } else {
+                    card.classList.remove('selected');
+                }
+            });
+        }
+
+        // タッチイベントをマウスイベントの座標に変換して共通処理へ
+        function handleTouchStart(e) {
+            e.preventDefault(); // スクロール防止
+            if (e.touches.length > 0) {
+                const touch = e.touches[0];
+                startInteraction({
+                    clientX: touch.clientX,
+                    clientY: touch.clientY,
+                    target: e.target
+                });
+            }
+        }
+
+        function handleTouchMove(e) {
+            e.preventDefault();
+            if (e.touches.length > 0) {
+                const touch = e.touches[0];
+                moveInteraction({
+                    clientX: touch.clientX,
+                    clientY: touch.clientY
+                });
+            }
+        }
+
+        function getMousePos(evt) {
+            const rect = ui.canvasContainer.getBoundingClientRect();
+            return {
+                x: evt.clientX - rect.left,
+                y: evt.clientY - rect.top
+            };
+        }
+
+        function startInteraction(e) {
+            const pos = getMousePos(e);
+            
+            if (state.mode === 'draw') {
+                state.isDrawing = true;
+                const newPathId = Date.now();
+                state.currentPath = { id: newPathId, points: [pos], selected: false };
+                state.paths.push(state.currentPath);
+                redrawCanvas();
+            } else if (state.mode === 'build' && state.selectedItem) {
+                // 建物を置く処理の開始（音声認識へ）
+                initiatePlacement(pos.x, pos.y, state.selectedItem);
+            } else if (state.mode === 'select') {
+                // 選択対象を探す
+                const hit = findHitEntity(pos.x, pos.y);
+                if (hit) {
+                    selectEntity(hit.type, hit.id);
+                    state.isDragging = true;
+                    state.dragStartMouse = { x: pos.x, y: pos.y };
+                    
+                    if (hit.type === 'object') {
+                        const obj = state.placedObjects.find(o => o.id === hit.id);
+                        state.dragStartPos = { x: obj.x, y: obj.y };
+                    } else if (hit.type === 'path') {
+                        const path = state.paths.find(p => p.id === hit.id);
+                        // パスの全ての頂点の初期位置を記録
+                        state.dragStartPos = path.points.map(pt => ({ x: pt.x, y: pt.y }));
+                    }
+                } else {
+                    clearSelection();
+                }
+            }
+        }
+
+        function moveInteraction(e) {
+            const pos = getMousePos(e);
+            
+            if (state.mode === 'draw' && state.isDrawing && state.currentPath) {
+                state.currentPath.points.push(pos);
+                redrawCanvas();
+            } 
+            // 建物配置モード時のゴースト表示
+            else if (state.mode === 'build' && state.selectedItem) {
+                ui.placementGhost.style.display = 'block';
+                ui.placementGhost.style.left = `${pos.x}px`;
+                ui.placementGhost.style.top = `${pos.y}px`;
+                // 中心を合わせるためのオフセット補正
+                ui.placementGhost.style.transform = 'translate(-50%, -50%)';
+            }
+            // ドラッグ移動処理
+            else if (state.mode === 'select' && state.isDragging && state.selectedEntity) {
+                const dx = pos.x - state.dragStartMouse.x;
+                const dy = pos.y - state.dragStartMouse.y;
+                
+                if (state.selectedEntity.type === 'object') {
+                    const obj = state.placedObjects.find(o => o.id === state.selectedEntity.id);
+                    if (obj) {
+                        obj.x = state.dragStartPos.x + dx;
+                        obj.y = state.dragStartPos.y + dy;
+                        renderAllObjects();
+                    }
+                } else if (state.selectedEntity.type === 'path') {
+                    const path = state.paths.find(p => p.id === state.selectedEntity.id);
+                    if (path) {
+                        path.points = state.dragStartPos.map(pt => ({
+                            x: pt.x + dx,
+                            y: pt.y + dy
+                        }));
+                        redrawCanvas();
+                    }
+                }
+            }
+        }
+
+        function endInteraction() {
+            if (state.mode === 'draw' && state.isDrawing) {
+                state.isDrawing = false;
+                state.currentPath = null;
+                // 描画終了時に状態を保存
+                saveState();
+            } else if (state.mode === 'select' && state.isDragging) {
+                state.isDragging = false;
+                saveState();
+            }
+        }
+
+        function findHitEntity(x, y) {
+            // まず建物を判定（手前にあるため優先）
+            for (let i = state.placedObjects.length - 1; i >= 0; i--) {
+                const obj = state.placedObjects[i];
+                // 大体のサイズで当たり判定
+                if (Math.abs(obj.x - x) < 35 && Math.abs(obj.y - y) < 45) {
+                    return { type: 'object', id: obj.id };
+                }
+            }
+            
+            // 次に道を判定
+            for (let i = state.paths.length - 1; i >= 0; i--) {
+                const path = state.paths[i];
+                for (let j = 0; j < path.points.length - 1; j++) {
+                    const p1 = path.points[j];
+                    const p2 = path.points[j+1];
+                    const dist = distToSegment(x, y, p1.x, p1.y, p2.x, p2.y);
+                    if (dist < 15) { // 線の太さの半分を許容範囲に
+                        return { type: 'path', id: path.id };
+                    }
+                }
+                // 点が1つしかない場合
+                if (path.points.length === 1) {
+                     const p = path.points[0];
+                     if (Math.hypot(p.x - x, p.y - y) < 15) return { type: 'path', id: path.id };
+                }
+            }
+            
+            return null;
+        }
+
+        // 点と線分の距離を計算するヘルパー関数
+        function distToSegment(x, y, x1, y1, x2, y2) {
+            const A = x - x1;
+            const B = y - y1;
+            const C = x2 - x1;
+            const D = y2 - y1;
+            const dot = A * C + B * D;
+            const len_sq = C * C + D * D;
+            let param = -1;
+            if (len_sq != 0) param = dot / len_sq;
+            let xx, yy;
+            if (param < 0) {
+                xx = x1; yy = y1;
+            } else if (param > 1) {
+                xx = x2; yy = y2;
+            } else {
+                xx = x1 + param * C;
+                yy = y1 + param * D;
+            }
+            const dx = x - xx;
+            const dy = y - yy;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function selectEntity(type, id) {
+            clearSelection();
+            state.selectedEntity = { type, id };
+            
+            if (type === 'object') {
+                const obj = state.placedObjects.find(o => o.id === id);
+                if (obj) obj.selected = true;
+                renderAllObjects();
+            } else if (type === 'path') {
+                const path = state.paths.find(p => p.id === id);
+                if (path) path.selected = true;
+                redrawCanvas();
+            }
+            
+            ui.btnDelete.style.display = 'flex'; // 消すボタンを表示
+        }
+
+        function clearSelection() {
+            state.selectedEntity = null;
+            state.placedObjects.forEach(o => o.selected = false);
+            state.paths.forEach(p => p.selected = false);
+            ui.btnDelete.style.display = 'none';
+            renderAllObjects();
+            redrawCanvas();
+        }
+
+        function deleteSelected() {
+            if (!state.selectedEntity) return;
+            
+            if (state.selectedEntity.type === 'object') {
+                state.placedObjects = state.placedObjects.filter(o => o.id !== state.selectedEntity.id);
+            } else if (state.selectedEntity.type === 'path') {
+                state.paths = state.paths.filter(p => p.id !== state.selectedEntity.id);
+            }
+            
+            clearSelection();
+            saveState();
+        }
+
+        function redrawCanvas() {
+            ui.ctx.clearRect(0, 0, ui.canvas.width, ui.canvas.height);
+            
+            state.paths.forEach(path => {
+                if (path.points.length === 0) return;
+                
+                ui.ctx.beginPath();
+                ui.ctx.moveTo(path.points[0].x, path.points[0].y);
+                for (let i = 1; i < path.points.length; i++) {
+                    ui.ctx.lineTo(path.points[i].x, path.points[i].y);
+                }
+                
+                // 選択されている道は色と光沢を変える
+                if (path.selected) {
+                    ui.ctx.strokeStyle = '#60a5fa'; // 青
+                    ui.ctx.shadowColor = '#3b82f6';
+                    ui.ctx.shadowBlur = 10;
+                } else {
+                    ui.ctx.strokeStyle = '#9ca3af'; // アスファルトの灰色
+                    ui.ctx.shadowBlur = 0;
+                }
+                
+                ui.ctx.stroke();
+                
+                // 1点しかない場合は円を描画
+                if (path.points.length === 1) {
+                    ui.ctx.lineTo(path.points[0].x, path.points[0].y);
+                    ui.ctx.stroke();
+                }
+                
+                ui.ctx.shadowBlur = 0; // 他の描画に影響しないようリセット
+            });
+        }
+
+        function hideGhost() {
+            ui.placementGhost.style.display = 'none';
+            ui.canvasContainer.classList.remove('placing-mode');
+        }
+
+        function initiatePlacement(x, y, item) {
+            hideGhost();
+            
+            // 'my-town' フェーズで最初の家を置く特別な処理の記録
+            if (state.phase === 'my-town' && !state.hasHouse && item.word === 'house') {
+                state.hasHouse = true;
+            }
+
+            // 音声認識API非対応環境ではそのまま配置
+            if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
+                placeObject(x, y, item);
+                return;
+            }
+
+            // 音声認識モーダルの準備
+            state.pendingPlacement = { x, y, item };
+            state.targetWord = item.word;
+            state.targetIcon = item.icon;
+            state.failCount = 0;
+            
+            ui.targetIcon.textContent = item.icon;
+            ui.targetWord.textContent = item.word;
+            ui.failCountDisplay.textContent = "0";
+            ui.skipBtn.style.display = "none";
+            ui.voiceStatus.textContent = "マイクボタンを押して英語で言ってね";
+            ui.voiceStatus.className = "text-gray-600 mb-4 h-8";
+            
+            ui.voiceModal.style.display = 'flex';
+        }
+
+        function placeObject(x, y, item) {
+            const objData = {
+                id: Date.now(), // オブジェクトごとに一意のID
+                x: x, 
+                y: y, 
+                word: item.word, 
+                icon: item.icon,
+                selected: false
+            };
+            state.placedObjects.push(objData);
+            
+            renderAllObjects();
+            
+            // 設置成功のエフェクト
+            createConfetti(x, y);
+            
+            // 配置完了後に状態を保存
+            saveState();
+        }
+
+        function renderAllObjects() {
+            ui.objectLayer.innerHTML = '';
+            state.placedObjects.forEach(objData => {
+                const objDiv = document.createElement('div');
+                objDiv.className = `town-object ${objData.selected ? 'is-selected' : ''}`;
+                objDiv.style.left = `${objData.x}px`;
+                objDiv.style.top = `${objData.y}px`;
+                
+                objDiv.innerHTML = `
+                    <div class="town-object-icon">${objData.icon}</div>
+                    <div class="town-object-label">${objData.word}</div>
+                `;
+                
+                ui.objectLayer.appendChild(objDiv);
+            });
+        }
+
+        // 過去の関数の置き換え用
+        function renderObject(objData) {
+            renderAllObjects(); 
+        }
+
+        function saveState() {
+            // パスとオブジェクトの配列を深くコピーして保存
+            const pathsCopy = JSON.parse(JSON.stringify(state.paths));
+            const objectsCopy = JSON.parse(JSON.stringify(state.placedObjects));
+            
+            state.history.push({
+                paths: pathsCopy,
+                objects: objectsCopy,
+                hasHouse: state.hasHouse
+            });
+            
+            // 履歴が増えすぎないように制限（最大20回分）
+            if (state.history.length > 20) {
+                state.history.shift();
+            }
+        }
+
+        function undo() {
+            if (state.history.length <= 1) {
+                showToast("これ以上 もどれません");
+                return;
+            }
+            
+            // 現在の状態を破棄
+            state.history.pop();
+            // 1つ前の状態を取得
+            const previousState = state.history[state.history.length - 1];
+            
+            state.paths = JSON.parse(JSON.stringify(previousState.paths));
+            state.placedObjects = JSON.parse(JSON.stringify(previousState.objects));
+            state.hasHouse = previousState.hasHouse;
+            
+            clearSelection();
+            redrawCanvas();
+            renderAllObjects();
+        }
+
+        function clearAll() {
+            if (confirm("ほんとうに 最初から やりなおしますか？\n（今の町のデータがすべて消えます）")) {
+                state.paths = [];
+                state.placedObjects = [];
+                state.hasHouse = false;
+                state.history = [];
+                
+                clearSelection();
+                redrawCanvas();
+                renderAllObjects();
+                
+                // 家を中心に再配置
+                const houseItem = vocabulary.find(v => v.word === 'house');
+                if (houseItem) {
+                    const centerX = ui.canvasContainer.clientWidth / 2;
+                    const centerY = ui.canvasContainer.clientHeight / 2;
+                    placeObject(centerX, centerY, houseItem);
+                    state.hasHouse = true;
+                }
+                
+                showToast("ぜんぶ消して、やりなおしました！");
+            }
+        }
+
+        function setupSpeechRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) return;
+
+            state.recognition = new SpeechRecognition();
+            state.recognition.lang = 'en-US'; // 英語認識
+            state.recognition.interimResults = false;
+            state.recognition.maxAlternatives = 3;
+
+            state.recognition.onstart = function() {
+                ui.micBtn.classList.add('listening');
+                ui.voiceStatus.textContent = "聞いています...";
+                ui.voiceStatus.className = "text-blue-500 font-bold mb-4 h-8 animate-pulse";
+            };
+
+            state.recognition.onresult = function(event) {
+                ui.micBtn.classList.remove('listening');
+                
+                let isCorrect = false;
+                let heardWords = [];
+                
+                // 複数の候補をチェック
+                for (let i = 0; i < event.results[0].length; i++) {
+                    let transcript = event.results[0][i].transcript.toLowerCase().trim();
+                    // 句読点などを除去
+                    transcript = transcript.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
+                    heardWords.push(transcript);
+                    
+                    // ターゲット単語が含まれているか、または一致するかチェック
+                    if (transcript === state.targetWord.toLowerCase() || 
+                        transcript.includes(state.targetWord.toLowerCase())) {
+                        isCorrect = true;
+                        break;
+                    }
+                }
+
+                if (isCorrect) {
+                    handleVoiceSuccess();
+                } else {
+                    handleVoiceFail(heardWords[0]);
+                }
+            };
+
+            state.recognition.onerror = function(event) {
+                ui.micBtn.classList.remove('listening');
+                console.error("Speech recognition error", event.error);
+                
+                if (event.error === 'not-allowed') {
+                    ui.voiceStatus.textContent = "マイクが使えません。スキップして置きます。";
+                    ui.voiceStatus.className = "text-red-500 font-bold mb-4 h-8";
+                    setTimeout(() => {
+                        ui.skipBtn.click();
+                    }, 1500);
+                } else {
+                    handleVoiceFail("聞き取れませんでした");
+                }
+            };
+            
+            state.recognition.onend = function() {
+                 ui.micBtn.classList.remove('listening');
+                 if(ui.voiceStatus.textContent === "聞いています...") {
+                     ui.voiceStatus.textContent = "もう一度マイクを押してね";
+                     ui.voiceStatus.className = "text-gray-600 mb-4 h-8";
+                 }
+            }
+        }
+
+        function toggleListening() {
+            if (!state.recognition) return;
+            
+            try {
+                if (ui.micBtn.classList.contains('listening')) {
+                    state.recognition.stop();
+                } else {
+                    state.recognition.start();
+                }
+            } catch (e) {
+                // すでに開始している場合のエラー回避
+                console.error(e);
+            }
+        }
+
+        function handleVoiceSuccess() {
+            ui.voiceStatus.textContent = "Excellent! ✨";
+            ui.voiceStatus.className = "text-green-500 font-bold text-xl mb-4 h-8";
+            
+            // ちょっと待ってから配置して閉じる
+            setTimeout(() => {
+                placeObject(state.pendingPlacement.x, state.pendingPlacement.y, state.pendingPlacement.item);
+                closeVoiceModal();
+            }, 1000);
+        }
+
+        function handleVoiceFail(heard) {
+            state.failCount++;
+            ui.failCountDisplay.textContent = state.failCount;
+            
+            ui.voiceStatus.innerHTML = `「${heard}」と聞こえました。<br>もう一度挑戦！`;
+            ui.voiceStatus.className = "text-orange-500 font-bold mb-4 h-12 text-sm";
+            
+            // 3回失敗でスキップボタン表示
+            if (state.failCount >= 3) {
+                ui.skipBtn.style.display = "block";
+                ui.voiceStatus.innerHTML = `少し難しかったかな？<br>スキップして置くこともできるよ。`;
+            }
+        }
+
+        function closeVoiceModal() {
+            ui.voiceModal.style.display = 'none';
+            if (state.recognition) {
+                try { state.recognition.stop(); } catch(e){}
+            }
+            ui.micBtn.classList.remove('listening');
+        }
+
+        // 英語の音声を出力する関数
+        function playAudio(word) {
+            if ('speechSynthesis' in window) {
+                // すでに再生中の場合はキャンセルして新しく再生
+                window.speechSynthesis.cancel();
+                
+                const utterance = new SpeechSynthesisUtterance(word);
+                utterance.lang = 'en-US'; // 英語(米国)
+                utterance.rate = 0.9; // 児童向けに少しゆっくりめに設定
+                
+                window.speechSynthesis.speak(utterance);
+            } else {
+                showToast("お使いのブラウザは音声再生に対応していません。");
+            }
+        }
+
+        function finishTown() {
+            // 最低限のオブジェクトがあるかチェック（任意）
+            if (state.placedObjects.length === 0) {
+                showToast("まだ何も建っていないよ！");
+                return;
+            }
+            
+            ui.finishModal.style.display = 'flex';
+        }
+
+        function startNextPhase() {
+            // モーダルを閉じる
+            ui.finishModal.style.display = 'none';
+            
+            // 画面とデータをリセット
+            state.paths = [];
+            state.placedObjects = [];
+            state.hasHouse = false;
+            state.history = [];
+            
+            clearSelection();
+            redrawCanvas();
+            renderAllObjects();
+            
+            // フェーズの切り替え
+            state.phase = 'dream-town';
+            state.dreamTownCount++;
+            
+            // UIの更新
+            ui.modeBadge.textContent = `夢の町 ${state.dreamTownCount-1}`;
+            ui.modeBadge.className = "bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-purple-400";
+            ui.toolbar.classList.add('dream-mode-header');
+            
+            setMode('draw');
+            
+            // 新しい町の初期状態として家を中心に配置
+            setTimeout(() => {
+                const houseItem = vocabulary.find(v => v.word === 'house');
+                if (houseItem) {
+                    const centerX = ui.canvasContainer.clientWidth / 2;
+                    const centerY = ui.canvasContainer.clientHeight / 2;
+                    placeObject(centerX, centerY, houseItem);
+                    state.hasHouse = true;
+                }
+            }, 100);
+            
+            // メッセージ
+            showToast(`次は、理想の「夢の町 ${state.dreamTownCount-1}」を作ろう！自由に作ってね。`);
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed top-20 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-6 py-3 rounded-full shadow-lg z-50 transition-opacity duration-500';
+            toast.style.opacity = '0';
+            toast.textContent = message;
+            
+            document.body.appendChild(toast);
+            
+            // フェードイン
+            setTimeout(() => { toast.style.opacity = '1'; }, 10);
+            
+            // フェードアウトして削除
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                setTimeout(() => { toast.remove(); }, 500);
+            }, 3000);
+        }
+
+        function createConfetti(x, y) {
+            const colors = ['#fce7f3', '#dbeafe', '#dcfce7', '#fef9c3', '#ffedd5'];
+            for (let i = 0; i < 10; i++) {
+                const particle = document.createElement('div');
+                particle.style.position = 'absolute';
+                particle.style.left = `${x}px`;
+                particle.style.top = `${y}px`;
+                particle.style.width = '10px';
+                particle.style.height = '10px';
+                particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                particle.style.borderRadius = '50%';
+                particle.style.pointerEvents = 'none';
+                particle.style.zIndex = '10';
+                
+                const angle = Math.random() * Math.PI * 2;
+                const velocity = 20 + Math.random() * 30;
+                const tx = Math.cos(angle) * velocity;
+                const ty = Math.sin(angle) * velocity - 20; // 少し上に向かって飛ぶ
+                
+                particle.animate([
+                    { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                    { transform: `translate(${tx}px, ${ty}px) scale(0)`, opacity: 0 }
+                ], {
+                    duration: 500 + Math.random() * 500,
+                    easing: 'cubic-bezier(0, .9, .57, 1)'
+                });
+                
+                ui.canvasContainer.appendChild(particle);
+                setTimeout(() => particle.remove(), 1000);
+            }
+        }
+
+        // アプリケーション起動
+        window.onload = initApp;
+
+    </script>
+</body>
+</html>
