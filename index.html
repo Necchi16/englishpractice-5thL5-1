@@ -549,7 +549,9 @@
             targetWord: "",
             targetIcon: "",
             failCount: 0,
-            pendingPlacement: null // {x, y, item}
+            pendingPlacement: null, // {x, y, item}
+            micStartTime: 0,
+            fakeListenTimeout: null
         };
 
         // DOM要素
@@ -590,6 +592,37 @@
             btnShowTeacher: document.getElementById('btn-show-teacher')
         };
 
+        function persistData() {
+            const dataToSave = {
+                paths: state.paths,
+                placedObjects: state.placedObjects,
+                hasHouse: state.hasHouse,
+                phase: state.phase,
+                dreamTownCount: state.dreamTownCount
+            };
+            localStorage.setItem('myTownBuilderData', JSON.stringify(dataToSave));
+        }
+
+        function loadPersistedData() {
+            const saved = localStorage.getItem('myTownBuilderData');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    if (data && (data.paths || data.placedObjects)) {
+                        state.paths = data.paths || [];
+                        state.placedObjects = data.placedObjects || [];
+                        state.hasHouse = data.hasHouse !== undefined ? data.hasHouse : false;
+                        state.phase = data.phase || 'my-town';
+                        state.dreamTownCount = data.dreamTownCount || 1;
+                        return true;
+                    }
+                } catch(e) {
+                    console.error("Local storage loading error", e);
+                }
+            }
+            return false;
+        }
+
         function initApp() {
             resizeCanvas();
             window.addEventListener('resize', resizeCanvas);
@@ -603,24 +636,47 @@
             // イベントリスナーの登録
             setupEventListeners();
 
+            const hasSavedData = loadPersistedData();
+
+            if (hasSavedData) {
+                if (state.phase === 'dream-town') {
+                    ui.modeBadge.textContent = `夢の町 ${state.dreamTownCount - 1}`;
+                    ui.modeBadge.className = "bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-purple-400";
+                    ui.toolbar.classList.add('dream-mode-header');
+                }
+                
+                redrawCanvas();
+                renderAllObjects();
+                
+                const pathsCopy = JSON.parse(JSON.stringify(state.paths));
+                const objectsCopy = JSON.parse(JSON.stringify(state.placedObjects));
+                state.history.push({ paths: pathsCopy, objects: objectsCopy, hasHouse: state.hasHouse });
+            }
+
             // 初期状態は道を描くモード
             setMode('draw');
             
-            // キャンバスサイズ確定後に家を配置し、初期状態を保存
-            setTimeout(() => {
-                const houseItem = vocabulary.find(v => v.word === 'house');
-                if (houseItem && state.placedObjects.length === 0) {
-                    const centerX = ui.canvasContainer.clientWidth / 2;
-                    const centerY = ui.canvasContainer.clientHeight / 2;
-                    placeObject(centerX, centerY, houseItem);
-                    state.hasHouse = true;
-                }
-            }, 100);
-            
-            // 最初の指示
-            setTimeout(() => {
-                showToast("家の周りに道を描いて、町を広げていこう！");
-            }, 1000);
+            if (!hasSavedData) {
+                // キャンバスサイズ確定後に家を配置し、初期状態を保存
+                setTimeout(() => {
+                    const houseItem = vocabulary.find(v => v.word === 'house');
+                    if (houseItem && state.placedObjects.length === 0) {
+                        const centerX = ui.canvasContainer.clientWidth / 2;
+                        const centerY = ui.canvasContainer.clientHeight / 2;
+                        placeObject(centerX, centerY, houseItem);
+                        state.hasHouse = true;
+                    }
+                }, 100);
+                
+                // 最初の指示
+                setTimeout(() => {
+                    showToast("家の周りに道を描いて、町を広げていこう！");
+                }, 1000);
+            } else {
+                setTimeout(() => {
+                    showToast("前回の続きから始まります！");
+                }, 500);
+            }
         }
 
         function resizeCanvas() {
@@ -1109,6 +1165,8 @@
             if (state.history.length > 20) {
                 state.history.shift();
             }
+            
+            persistData();
         }
 
         function undo() {
@@ -1129,6 +1187,7 @@
             clearSelection();
             redrawCanvas();
             renderAllObjects();
+            persistData();
         }
 
         function clearAll() {
@@ -1151,6 +1210,7 @@
                     state.hasHouse = true;
                 }
                 
+                persistData();
                 showToast("ぜんぶ消して、やりなおしました！");
             }
         }
@@ -1199,23 +1259,38 @@
             };
 
             state.recognition.onerror = function(event) {
-                ui.micBtn.classList.remove('listening');
                 console.error("Speech recognition error", event.error);
                 
                 if (event.error === 'not-allowed') {
-                    ui.voiceStatus.textContent = "マイクが使えません。スキップして置きます。";
+                    ui.micBtn.classList.remove('listening');
+                    ui.voiceStatus.textContent = "ブラウザのマイクを許可してね。";
                     ui.voiceStatus.className = "text-red-500 font-bold mb-4 h-8";
-                    setTimeout(() => {
-                        ui.skipBtn.click();
-                    }, 1500);
                 } else {
-                    handleVoiceFail("聞き取れませんでした");
+                    const elapsed = Date.now() - (state.micStartTime || Date.now());
+                    const minDelay = 10000; // 最低10秒待機
+                    
+                    if (elapsed < minDelay) {
+                        ui.voiceStatus.textContent = "考え中...";
+                        ui.micBtn.classList.add('listening'); // アニメーション継続
+                        
+                        state.fakeListenTimeout = setTimeout(() => {
+                            state.fakeListenTimeout = null;
+                            ui.micBtn.classList.remove('listening');
+                            handleVoiceFail("聞き取れませんでした");
+                        }, minDelay - elapsed);
+                    } else {
+                        ui.micBtn.classList.remove('listening');
+                        handleVoiceFail("聞き取れませんでした");
+                    }
                 }
             };
             
             state.recognition.onend = function() {
+                 // ダミーの待機中であればリセット処理をスキップ
+                 if (state.fakeListenTimeout) return;
+
                  ui.micBtn.classList.remove('listening');
-                 if(ui.voiceStatus.textContent === "聞いています...") {
+                 if(ui.voiceStatus.textContent === "聞いています..." || ui.voiceStatus.textContent === "考え中...") {
                      ui.voiceStatus.textContent = "もう一度マイクを押してね";
                      ui.voiceStatus.className = "text-gray-600 mb-4 h-8";
                  }
@@ -1225,10 +1300,14 @@
         function toggleListening() {
             if (!state.recognition) return;
             
+            // 意図的な遅延中（ネットワークエラー等）は操作を無視
+            if (state.fakeListenTimeout) return;
+            
             try {
                 if (ui.micBtn.classList.contains('listening')) {
                     state.recognition.stop();
                 } else {
+                    state.micStartTime = Date.now(); // 開始時間を記録
                     state.recognition.start();
                 }
             } catch (e) {
@@ -1264,6 +1343,10 @@
 
         function closeVoiceModal() {
             ui.voiceModal.style.display = 'none';
+            if (state.fakeListenTimeout) {
+                clearTimeout(state.fakeListenTimeout);
+                state.fakeListenTimeout = null;
+            }
             if (state.recognition) {
                 try { state.recognition.stop(); } catch(e){}
             }
@@ -1332,6 +1415,7 @@
                 }
             }, 100);
             
+            persistData();
             // メッセージ
             showToast(`次は、理想の「夢の町 ${state.dreamTownCount-1}」を作ろう！自由に作ってね。`);
         }
