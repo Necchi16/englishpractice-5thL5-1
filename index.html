@@ -369,40 +369,66 @@
     <div id="app-container">
         <!-- ツールバー -->
         <div id="toolbar" class="flex flex-col sm:flex-row gap-2">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 min-w-max">
                 <span id="mode-badge" class="bg-blue-100 text-blue-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-blue-400">わたしの町</span>
                 <h1 class="text-xl font-bold text-gray-800 hidden sm:block">My Town Builder</h1>
             </div>
             
-            <div class="flex flex-wrap justify-center gap-2 my-1 sm:my-0">
-                <div class="flex gap-2">
-                    <button id="btn-select" class="tool-btn">
-                        <i class="fas fa-mouse-pointer"></i> <span>えらぶ</span>
-                    </button>
-                    <button id="btn-draw" class="tool-btn active">
-                        <i class="fas fa-road"></i> <span>道をかく</span>
-                    </button>
-                    <button id="btn-build" class="tool-btn">
-                        <i class="fas fa-home"></i> <span>建物を置く</span>
-                    </button>
-                </div>
-                <!-- 選択時に表示される削除ボタン -->
-                <button id="btn-delete" class="tool-btn bg-red-100 text-red-600 border-red-300 hover:bg-red-200" style="display: none;">
-                    <i class="fas fa-eraser"></i> <span class="hidden sm:inline">消す</span>
+            <!-- 編集モードのツール群 -->
+            <div id="edit-tools" class="flex flex-wrap justify-end sm:justify-between items-center gap-2 flex-grow w-full">
+                <button id="btn-history" class="tool-btn bg-purple-100 text-purple-700 border-purple-300 hover:bg-purple-200 shadow-sm font-bold mr-auto sm:mr-0">
+                    <i class="fas fa-history"></i> <span class="hidden md:inline">これまでの町</span>
                 </button>
-                <div class="flex gap-2 border-l-2 border-gray-300 pl-2">
-                    <button id="btn-undo" class="tool-btn bg-white" title="ひとつもどる">
-                        <i class="fas fa-undo"></i> <span class="hidden sm:inline">もどる</span>
+
+                <div class="flex flex-wrap justify-center gap-2 my-1 sm:my-0">
+                    <div class="flex gap-2">
+                        <button id="btn-select" class="tool-btn">
+                            <i class="fas fa-mouse-pointer"></i> <span>えらぶ</span>
+                        </button>
+                        <button id="btn-draw" class="tool-btn active">
+                            <i class="fas fa-road"></i> <span>道をかく</span>
+                        </button>
+                        <button id="btn-build" class="tool-btn">
+                            <i class="fas fa-home"></i> <span>建物を置く</span>
+                        </button>
+                    </div>
+                    <!-- 選択時に表示される削除ボタン -->
+                    <button id="btn-delete" class="tool-btn bg-red-100 text-red-600 border-red-300 hover:bg-red-200" style="display: none;">
+                        <i class="fas fa-eraser"></i> <span class="hidden sm:inline">消す</span>
                     </button>
-                    <button id="btn-clear" class="tool-btn bg-white text-red-500 hover:text-red-600" title="はじめからやりなおす">
-                        <i class="fas fa-trash-alt"></i> <span class="hidden sm:inline">やりなおす</span>
+                    <div class="flex gap-2 border-l-2 border-gray-300 pl-2">
+                        <button id="btn-undo" class="tool-btn bg-white" title="ひとつもどる">
+                            <i class="fas fa-undo"></i> <span class="hidden sm:inline">もどる</span>
+                        </button>
+                        <button id="btn-clear" class="tool-btn bg-white text-red-500 hover:text-red-600" title="はじめからやりなおす">
+                            <i class="fas fa-trash-alt"></i> <span class="hidden sm:inline">やりなおす</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div>
+                    <button id="btn-finish" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full shadow-md transition-colors flex items-center gap-2">
+                        <i class="fas fa-check-circle"></i> できた！
                     </button>
                 </div>
             </div>
-            
-            <div>
-                <button id="btn-finish" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full shadow-md transition-colors flex items-center gap-2">
-                    <i class="fas fa-check-circle"></i> できた！
+
+            <!-- 完成鑑賞モードのツール群 -->
+            <div id="finish-tools" class="hidden flex-wrap justify-end items-center gap-3 flex-grow w-full">
+                <span class="text-lg font-bold text-green-600 hidden sm:block mr-auto">町を見ています 👀</span>
+                <button id="btn-back-to-edit" class="tool-btn bg-white shadow-sm">
+                    <i class="fas fa-pencil-alt"></i> もう少し作る
+                </button>
+                <button id="btn-show-teacher-toolbar" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-full shadow-md transition-transform hover:scale-105 flex items-center gap-2">
+                    <i class="fas fa-check-circle"></i> 先生に見せたよ！
+                </button>
+            </div>
+
+            <!-- 過去閲覧モードのツール群 -->
+            <div id="history-tools" class="hidden flex-wrap justify-between items-center gap-3 flex-grow w-full">
+                <span id="history-view-title" class="text-lg font-bold text-purple-600">昔の町を見ています 👀</span>
+                <button id="btn-return-current" class="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-6 rounded-full shadow-md transition-colors flex items-center gap-2">
+                    <i class="fas fa-undo"></i> 今の町にもどる
                 </button>
             </div>
         </div>
@@ -463,15 +489,33 @@
         </div>
     </div>
 
-    <!-- 完成画面（先生を呼ぶ） -->
+    <!-- 完成画面モーダル -->
     <div id="finish-modal">
         <div class="finish-content">
-            <h1 class="text-5xl font-bold text-blue-600 mb-8" id="finish-title">完成！！</h1>
-            <p class="text-2xl mb-8">先生を呼んで、町を見てもらおう！</p>
-            <div class="text-9xl mb-8 animate-bounce">👩‍🏫👨‍🏫</div>
-            <button id="btn-show-teacher" class="big-btn btn-blue">
-                先生に見せたよ！
-            </button>
+            <h1 class="text-5xl font-bold text-green-600 mb-8" id="finish-title">完成！！</h1>
+            <p class="text-xl mb-6 font-bold">すてきな町ができたね！<br>町をじっくり見るか、先生に見てもらおう。</p>
+            <div class="text-8xl mb-8 animate-bounce">👩‍🏫👨‍🏫</div>
+            <div class="flex flex-col sm:flex-row justify-center gap-4">
+                <button id="btn-view-town" class="big-btn btn-green text-lg">
+                    <i class="fas fa-eye"></i> 町を見る
+                </button>
+                <button id="btn-show-teacher-modal" class="big-btn btn-blue text-lg">
+                    <i class="fas fa-check-circle"></i> 先生に見せたよ！
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 履歴表示モーダル -->
+    <div id="history-modal" class="fixed top-0 left-0 w-full h-full bg-black bg-opacity-50 hidden justify-center items-center z-50 backdrop-blur-sm">
+        <div class="bg-white p-6 rounded-2xl shadow-xl max-w-md w-full max-h-[80vh] flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="text-2xl font-bold text-gray-800">これまでの町</h2>
+                <button id="close-history" class="text-gray-500 hover:text-gray-800 text-2xl"><i class="fas fa-times"></i></button>
+            </div>
+            <div id="history-list" class="flex-grow overflow-y-auto flex flex-col gap-3">
+                <!-- JavaScriptでリストを生成 -->
+            </div>
         </div>
     </div>
 
@@ -551,7 +595,12 @@
             failCount: 0,
             pendingPlacement: null, // {x, y, item}
             micStartTime: 0,
-            fakeListenTimeout: null
+            fakeListenTimeout: null,
+
+            // モード管理と履歴閲覧用
+            savedTowns: [], // { name, phase, count, paths, objects, hasHouse }
+            appMode: 'edit', // 'edit' (編集), 'finish-view' (完成鑑賞), 'history-view' (過去閲覧)
+            currentTownBackup: null // 履歴閲覧時の今の町の一時退避用
         };
 
         // DOM要素
@@ -575,6 +624,16 @@
             modeBadge: document.getElementById('mode-badge'),
             toolbar: document.getElementById('toolbar'),
             
+            // モードと履歴用ツールバー要素
+            editTools: document.getElementById('edit-tools'),
+            finishTools: document.getElementById('finish-tools'),
+            historyTools: document.getElementById('history-tools'),
+            btnHistory: document.getElementById('btn-history'),
+            btnBackToEdit: document.getElementById('btn-back-to-edit'),
+            btnShowTeacherToolbar: document.getElementById('btn-show-teacher-toolbar'),
+            btnReturnCurrent: document.getElementById('btn-return-current'),
+            historyViewTitle: document.getElementById('history-view-title'),
+            
             // 音声モーダル
             voiceModal: document.getElementById('voice-modal'),
             targetIcon: document.getElementById('target-icon'),
@@ -589,7 +648,13 @@
             // 終了モーダル
             finishModal: document.getElementById('finish-modal'),
             finishTitle: document.getElementById('finish-title'),
-            btnShowTeacher: document.getElementById('btn-show-teacher')
+            btnViewTown: document.getElementById('btn-view-town'),
+            btnShowTeacherModal: document.getElementById('btn-show-teacher-modal'),
+            
+            // 履歴モーダル
+            historyModal: document.getElementById('history-modal'),
+            historyList: document.getElementById('history-list'),
+            closeHistory: document.getElementById('close-history')
         };
 
         function persistData() {
@@ -598,7 +663,8 @@
                 placedObjects: state.placedObjects,
                 hasHouse: state.hasHouse,
                 phase: state.phase,
-                dreamTownCount: state.dreamTownCount
+                dreamTownCount: state.dreamTownCount,
+                savedTowns: state.savedTowns
             };
             localStorage.setItem('myTownBuilderData', JSON.stringify(dataToSave));
         }
@@ -614,6 +680,7 @@
                         state.hasHouse = data.hasHouse !== undefined ? data.hasHouse : false;
                         state.phase = data.phase || 'my-town';
                         state.dreamTownCount = data.dreamTownCount || 1;
+                        state.savedTowns = data.savedTowns || []; // 保存された町リストを復元
                         return true;
                     }
                 } catch(e) {
@@ -703,6 +770,11 @@
             ui.btnClear.addEventListener('click', clearAll);
             ui.btnFinish.addEventListener('click', finishTown);
             
+            // アプリモード切替と履歴ボタン
+            ui.btnHistory.addEventListener('click', openHistoryModal);
+            ui.btnBackToEdit.addEventListener('click', () => changeAppMode('edit'));
+            ui.btnReturnCurrent.addEventListener('click', returnToCurrentTown);
+            
             // パレット操作
             ui.closePalette.addEventListener('click', () => {
                 ui.itemPalette.classList.remove('show');
@@ -734,8 +806,36 @@
                 playAudio(state.targetWord);
             });
             
-            // 終了モーダル
-            ui.btnShowTeacher.addEventListener('click', startNextPhase);
+            // 終了モーダルと関連アクション
+            ui.btnViewTown.addEventListener('click', () => {
+                ui.finishModal.style.display = 'none';
+                changeAppMode('finish-view');
+            });
+            ui.btnShowTeacherModal.addEventListener('click', startNextPhase);
+            ui.btnShowTeacherToolbar.addEventListener('click', startNextPhase);
+            
+            // 履歴モーダル
+            ui.closeHistory.addEventListener('click', () => ui.historyModal.style.display = 'none');
+        }
+
+        function changeAppMode(mode) {
+            state.appMode = mode;
+            
+            // 表示の切り替え
+            ui.editTools.style.display = mode === 'edit' ? 'flex' : 'none';
+            ui.finishTools.style.display = mode === 'finish-view' ? 'flex' : 'none';
+            ui.historyTools.style.display = mode === 'history-view' ? 'flex' : 'none';
+            
+            if (mode === 'finish-view' || mode === 'history-view') {
+                // 閲覧中は選択状態を解除し、パレットも閉じる
+                clearSelection();
+                ui.itemPalette.classList.remove('show');
+                ui.canvasContainer.style.cursor = 'default';
+                ui.canvasContainer.classList.remove('select-mode', 'placing-mode');
+            } else if (mode === 'edit') {
+                // 編集モードに戻る時は現在のツール状態を復帰
+                setMode(state.mode);
+            }
         }
 
         function setMode(mode) {
@@ -860,6 +960,9 @@
         }
 
         function startInteraction(e) {
+            // 編集モード以外は操作を受け付けない
+            if (state.appMode !== 'edit') return;
+            
             const pos = getMousePos(e);
             
             if (state.mode === 'draw') {
@@ -894,6 +997,9 @@
         }
 
         function moveInteraction(e) {
+            // 編集モード以外は操作を受け付けない
+            if (state.appMode !== 'edit') return;
+
             const pos = getMousePos(e);
             
             if (state.mode === 'draw' && state.isDrawing && state.currentPath) {
@@ -934,6 +1040,9 @@
         }
 
         function endInteraction() {
+            // 編集モード以外は操作を受け付けない
+            if (state.appMode !== 'edit') return;
+
             if (state.mode === 'draw' && state.isDrawing) {
                 state.isDrawing = false;
                 state.currentPath = null;
@@ -1380,6 +1489,17 @@
         }
 
         function startNextPhase() {
+            // 現在の町を保存リストに追加
+            const townName = state.phase === 'my-town' ? 'わたしの町' : `夢の町 ${state.dreamTownCount - 1}`;
+            state.savedTowns.push({
+                name: townName,
+                phase: state.phase,
+                count: state.dreamTownCount,
+                paths: JSON.parse(JSON.stringify(state.paths)),
+                objects: JSON.parse(JSON.stringify(state.placedObjects)),
+                hasHouse: state.hasHouse
+            });
+
             // モーダルを閉じる
             ui.finishModal.style.display = 'none';
             
@@ -1402,6 +1522,8 @@
             ui.modeBadge.className = "bg-purple-100 text-purple-800 text-xs font-semibold px-2.5 py-0.5 rounded border border-purple-400";
             ui.toolbar.classList.add('dream-mode-header');
             
+            // 編集モードに確実に戻す
+            changeAppMode('edit');
             setMode('draw');
             
             // 新しい町の初期状態として家を中心に配置
@@ -1418,6 +1540,82 @@
             persistData();
             // メッセージ
             showToast(`次は、理想の「夢の町 ${state.dreamTownCount-1}」を作ろう！自由に作ってね。`);
+        }
+
+        // 過去の町（履歴）関連の関数
+        function openHistoryModal() {
+            if (state.savedTowns.length === 0) {
+                showToast("まだ保存された町がないよ！町を完成させて先生に見せよう。");
+                return;
+            }
+            
+            ui.historyList.innerHTML = '';
+            // 新しいものが上に来るように逆順で表示
+            [...state.savedTowns].reverse().forEach((town, reversedIndex) => {
+                // 元の配列におけるインデックスを計算
+                const index = state.savedTowns.length - 1 - reversedIndex;
+                
+                const btn = document.createElement('button');
+                btn.className = 'w-full text-left bg-gray-50 hover:bg-gray-100 border border-gray-200 p-4 rounded-xl flex items-center justify-between transition-colors shadow-sm';
+                
+                const icon = town.phase === 'my-town' ? '🏡' : '✨';
+                btn.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="bg-blue-100 text-blue-600 w-12 h-12 rounded-full flex items-center justify-center text-2xl shadow-inner">
+                            ${icon}
+                        </div>
+                        <div>
+                            <span class="font-bold text-gray-800 text-lg block">${town.name}</span>
+                            <span class="text-sm text-gray-500">建物: ${town.objects.length}個</span>
+                        </div>
+                    </div>
+                    <i class="fas fa-chevron-right text-gray-400 text-xl pr-2"></i>
+                `;
+                
+                btn.addEventListener('click', () => {
+                    ui.historyModal.style.display = 'none';
+                    viewHistoryTown(index);
+                });
+                ui.historyList.appendChild(btn);
+            });
+            
+            ui.historyModal.style.display = 'flex';
+        }
+
+        function viewHistoryTown(index) {
+            const town = state.savedTowns[index];
+            
+            // 現在の編集状態を退避
+            state.currentTownBackup = {
+                paths: JSON.parse(JSON.stringify(state.paths)),
+                placedObjects: JSON.parse(JSON.stringify(state.placedObjects)),
+                hasHouse: state.hasHouse
+            };
+            
+            // 履歴データで上書きして描画
+            state.paths = JSON.parse(JSON.stringify(town.paths));
+            state.placedObjects = JSON.parse(JSON.stringify(town.objects));
+            state.hasHouse = town.hasHouse;
+            
+            ui.historyViewTitle.textContent = `${town.name} を見ています 👀`;
+            
+            changeAppMode('history-view');
+            redrawCanvas();
+            renderAllObjects();
+        }
+
+        function returnToCurrentTown() {
+            if (state.currentTownBackup) {
+                // 退避していたデータを復元
+                state.paths = state.currentTownBackup.paths;
+                state.placedObjects = state.currentTownBackup.placedObjects;
+                state.hasHouse = state.currentTownBackup.hasHouse;
+                state.currentTownBackup = null;
+            }
+            
+            changeAppMode('edit');
+            redrawCanvas();
+            renderAllObjects();
         }
 
         function showToast(message) {
